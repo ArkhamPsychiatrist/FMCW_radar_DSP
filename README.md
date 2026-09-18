@@ -7,7 +7,7 @@ An in-progress FMCW radar system. This repository contains the digital signal pr
 - `completed/`: Verilog modules and files for running the simulation with Icarus Verilog and GTKWave
 - `lite_first.sof`: FPGA configuration file for the DE1-SoC board, used to run real-time FFT
 
-## Digital side
+## Digital side: completed/
 
 Modules: `mixer`, `NCO`, `FIR_filter`, `peak_detector`, `FFT_frameCapture`, integrated with an open-source FFT module "https://github.com/ZipCPU/dblclockfft".
 
@@ -15,7 +15,7 @@ Modules: `mixer`, `NCO`, `FIR_filter`, `peak_detector`, `FFT_frameCapture`, inte
 - Verified with GTKWave and MATLAB
 - Real-time FFT implemented on a DE1-SoC FPGA board
 
-## Running on hardware
+## Running on hardware: lite_first.sof
 
 Program `lite_first.sof` onto the DE1-SoC over JTAG using Quartus Programmer. The configuration is stored in SRAM, so it must be reloaded after each power cycle.
 
