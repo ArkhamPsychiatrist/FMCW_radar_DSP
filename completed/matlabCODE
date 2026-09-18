@@ -1,0 +1,15 @@
+data = readmatrix('fft_peaks.txt');
+frame_number = data(:,1);
+peak_bin     = data(:,2);
+peak_freq    = data(:,3);   % MHz
+peak_mag     = data(:,4);
+figure;
+plot(frame_number, peak_freq, 'w.-', 'MarkerSize', 10);
+xlabel('Frame Number');
+ylabel('Peak Frequency (MHz)');
+title('Tracked Peak Frequency vs. Frame');
+grid on;
+ylim([0 50]);                 % y-axis range 0–50 MHz
+set(gca, 'Color', 'k');       % black axes background so white line is visible
+set(gcf, 'Color', 'k');       % black figure background
+set(gca, 'XColor', 'w', 'YColor', 'w');  % white axis labels/ticks

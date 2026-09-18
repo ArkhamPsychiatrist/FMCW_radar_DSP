@@ -1,0 +1,172 @@
+`timescale 1ns/1ps
+
+module tb #(
+    parameter PHASE_WIDTH = 16,
+    parameter OUT_WIDTH = 8
+);
+	// 1. generate these things from tb itself to feed other modules
+	
+	// 1.1 General 
+	reg clk;
+	reg rst;
+
+	// 1.2 NCO
+	reg [15:0] initial_phase_inc_nco_1;
+	reg [15:0] stop_phase_inc_nco_1;
+	reg [15:0] chirp_rate_nco_1;
+	reg chirp_en_nco_1;
+
+	reg [15:0] initial_phase_inc_nco_2;
+        reg [15:0] stop_phase_inc_nco_2;
+        reg [15:0] chirp_rate_nco_2;
+        reg chirp_en_nco_2;
+
+
+	// 1.3 fftmain
+	reg i_ce_fft;
+
+	// 2. interconnects or just outputs that need to be picked up
+	
+	// 2.1 mxier
+	wire [2*OUT_WIDTH-1:0] Q_out_tb;
+	wire [2*OUT_WIDTH-1:0] I_out_tb;
+
+	// 2.2 FIR
+	wire [31:0] filtered_out;
+
+	// 2.3 fftmain
+	wire [41:0] fft_out;
+	wire fft_sync;
+
+	// 2.4 NCO_1 and NCO_2
+	wire [7:0] sine_nco_1;	
+	wire [7:0] cosi_nco_1;
+	wire [7:0] sine_nco_2;
+        wire [7:0] cosi_nco_2;
+
+
+
+	// control the clock, also the sampling Frequency.
+	always #5 clk = ~clk;
+	// toggling every 5ns means Ts = 10ns, so Fs = 100MHz, therefore
+// Nyquist = Fs/2 = 50MHz
+
+
+	initial begin
+		$dumpfile("tb.vcd");
+		$dumpvars(0, tb);
+
+    		clk = 0;
+    		rst = 1;
+
+		// Based on Ts = 10ns, Fs = 100MHz,
+		// inc = f * 256 * 256 * 10 * 1e-9
+		// inc = f * 0.00065536
+		// inc = f * 6.5536 * 1e-4
+		// This math relation has to do with NCO.v's PHASE_WIDTH=16 and
+		// OUT_WIDTH=8.
+		//
+		//
+		// Assign parameters for chirping_NCO here:
+		initial_phase_inc_nco_1 = 16'd14418;	//22MHz
+    		stop_phase_inc_nco_1 = 16'd19661;	//30MHz
+		chirp_rate_nco_1 = 16'd1;
+		chirp_en_nco_1 = 1;
+		// f = (inc*1e+4)/6.5536
+	
+		// Assign parameters for non_chirping_NCO here:
+                initial_phase_inc_nco_2 = 16'd13107;	//20MHz
+                stop_phase_inc_nco_2 = 16'd13108;
+                chirp_rate_nco_2 = 16'd0;
+                chirp_en_nco_2 = 0;
+                // f = (inc*1e+4)/6.5536
+
+
+		i_ce_fft = 1;
+
+
+    		#20 rst = 0;
+    		#500000;
+    		$finish;
+	end
+
+// instantiating modules
+
+	frame_capture #(
+    		.TARGET_FRAME(10),          // pick whichever frame you want
+    		.OUTFILE("fft_output.txt")
+	) fft_frame_cap (
+    		.clk(clk),
+    		.rst(rst),
+    		.fft_output(fft_out),
+    		.fft_sync(fft_sync)
+	);
+
+	//  FFT input:
+	wire signed [15:0] real_part;
+	wire signed [15:0] imag_part = 16'sd0;   // real-valued signal, so imaginary = 0
+	wire [31:0] i_sample;
+	assign real_part = filtered_out[15:0];
+	assign i_sample = {real_part, imag_part};	
+
+
+
+	nco nco_ins1 (
+		.clk(clk),
+		.rst(rst),
+		.initial_phase_inc(initial_phase_inc_nco_1),
+		.stop_phase_inc(stop_phase_inc_nco_1),
+		.chirp_rate(chirp_rate_nco_1),
+		.chirp_en(chirp_en_nco_1),
+		.sin_out(sine_nco_1),
+		.cos_out(cosi_nco_1)
+	);
+
+        fftmain fft (
+                .i_clk(clk),
+                .i_reset(rst),
+                .i_ce(i_ce_fft),
+                .i_sample(i_sample),
+                .o_result(fft_out),
+                .o_sync(fft_sync)
+        );
+
+	peak_detector fft_peak_detector_ins1 (
+		.clk(clk),
+    		.rst(rst),
+    		.fft_output(fft_out),
+    		.fft_sync(fft_sync)
+	);
+
+	nco nco_not_chirping(
+		.clk(clk),
+		.rst(rst),
+		.initial_phase_inc(initial_phase_inc_nco_2),
+                .stop_phase_inc(stop_phase_inc_nco_2),
+                .chirp_rate(chirp_rate_nco_2),
+                .chirp_en(chirp_en_nco_2),
+                .sin_out(sine_nco_2),
+                .cos_out(cosi_nco_2)
+	);
+
+	mixer mixer_ins1(
+		.clk(clk),
+		.rst(rst),
+		.sin_nco(sine_nco_2),
+		.cos_nco(cosi_nco_2),
+		.input_waveform(sine_nco_1),
+		.Q_out(Q_out_tb),
+		.I_out(I_out_tb)
+	);
+
+	improved_fir fir_ins1 (
+		.rst(rst),
+		.clk(clk),
+		.data_in(I_out_tb),
+		.filtered_out(filtered_out)
+	);
+	
+endmodule
+
+
+
